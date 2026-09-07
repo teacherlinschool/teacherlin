@@ -1,0 +1,441 @@
+﻿<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>教室座位表編輯與管理系統</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    .seat-slot {
+      min-height: 90px;
+      transition: all 0.2s ease;
+    }
+    .seat-slot.drag-over {
+      background-color: #e0e7ff;
+      border-color: #6366f1;
+    }
+    .student-card {
+      cursor: grab;
+      user-select: none;
+      transition: transform 0.15s ease, box-shadow 0.15s ease;
+    }
+    .student-card:active {
+      cursor: grabbing;
+      transform: scale(0.95);
+    }
+  </style>
+</head>
+<body class="bg-slate-100 min-h-screen text-slate-800 font-sans pb-12">
+
+  <!-- 頂部導覽列 -->
+  <header class="bg-white shadow-sm border-b border-slate-200 sticky top-0 z-50">
+    <div class="max-w-7xl mx-auto px-4 py-3 flex flex-wrap justify-between items-center gap-4">
+      <div class="flex items-center space-x-3">
+        <h1 class="text-xl font-bold text-slate-800 flex items-center gap-2">
+          🪑 教室座位表與管理系統
+        </h1>
+        <span id="syncStatus" class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+          🟡 初始化中...
+        </span>
+      </div>
+
+      <!-- 班級代碼控制 -->
+      <div class="flex items-center space-x-2 bg-slate-50 p-1 rounded-lg border border-slate-200">
+        <span class="text-xs font-semibold text-slate-500 pl-2">班級代碼:</span>
+        <input type="text" id="roomInput" value="default" class="w-24 px-2 py-1 text-sm border border-slate-300 rounded focus:outline-none focus:ring-2 focus:ring-indigo-500 text-center font-bold">
+        <button onclick="switchRoom()" class="bg-indigo-600 hover:bg-indigo-700 text-white text-xs px-3 py-1.5 rounded transition">
+          切換班級
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- 主要內容區塊 -->
+  <main class="max-w-7xl mx-auto px-4 mt-6 grid grid-cols-1 lg:grid-cols-4 gap-6">
+
+    <!-- 左側邊欄：學生名單與控制面版 -->
+    <section class="lg:col-span-1 bg-white p-5 rounded-xl shadow-sm border border-slate-200 flex flex-col gap-4">
+      <div>
+        <h2 class="text-base font-bold text-slate-700 mb-1 flex items-center gap-1">
+          👥 學生名單
+        </h2>
+        <p class="text-xs text-slate-500 mb-2">格式：座號,姓名,性別 (每行一位)</p>
+        <textarea id="studentTextarea" rows="10" class="w-full text-xs font-mono p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none">01,洪秉豪,男
+02,吳冠陞,男
+03,黃士軒,男
+04,徐乙豪,男
+05,葉睿軒,男
+06,曾梓豪,男
+07,陳柏瑋,男
+08,曾晨恩,男
+09,葉侑穎,男
+10,畢佳鈞,男
+11,陳以勛,男
+12,李宥瑨,男
+13,呂洸祐,男
+14,洪詠霖,男
+16,吳冠毅,男
+17,江芮妡,女
+18,蘇筠倢,女
+19,陳芷榆,女
+20,黃品穎,女
+21,蔡欣庭,女
+22,沈宜蒨,女
+23,邱苡萱,女
+24,蘇語萌,女
+25,盧詩云,女
+26,劉芷玹,女
+27,白堇汝,女
+28,潘潔希,女
+29,廖亭雅,女</textarea>
+      </div>
+
+      <div class="grid grid-cols-1 gap-2">
+        <button onclick="parseAndImport()" class="w-full bg-slate-800 hover:bg-slate-900 text-white font-medium py-2 px-4 rounded-lg text-sm transition">
+          解析並帶入名單
+        </button>
+        <div class="grid grid-cols-2 gap-2">
+          <button onclick="autoArrange('alternate')" class="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-medium py-2 px-2 rounded-lg text-xs transition border border-indigo-200">
+            男女相鄰編排
+          </button>
+          <button onclick="autoArrange('random')" class="bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-medium py-2 px-2 rounded-lg text-xs transition border border-emerald-200">
+            隨機排序
+          </button>
+        </div>
+        <button onclick="clearBoard()" class="w-full bg-rose-50 hover:bg-rose-100 text-rose-600 font-medium py-1.5 px-4 rounded-lg text-xs transition border border-rose-200">
+          清空座位表
+        </button>
+      </div>
+
+      <!-- 未分配萬用池 -->
+      <div class="mt-2 border-t pt-3">
+        <h3 class="text-xs font-bold text-slate-500 mb-2">未分配座位學生 (<span id="unassignedCount">0</span>)</h3>
+        <div id="unassignedPool" class="min-h-[80px] p-2 bg-slate-50 rounded-lg border border-dashed border-slate-300 flex flex-wrap gap-2 max-h-48 overflow-y-auto">
+          <!-- 未派座位的學生小標籤會在這裡 -->
+        </div>
+      </div>
+    </section>
+
+    <!-- 右側：講台與座位畫布 (5排 x 6欄 = 30格) -->
+    <section class="lg:col-span-3 bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+      <!-- 黑板/講台標示 -->
+      <div class="mb-6 bg-emerald-700 text-white text-center py-2.5 rounded-lg shadow-inner font-bold text-sm tracking-wider">
+        黑 板 / 講 台
+      </div>
+
+      <!-- 30 個座位網格 (5列 x 6欄) -->
+      <div id="seatingGrid" class="grid grid-cols-6 gap-3">
+        <!-- JS 動態生成座位 Slot -->
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Firebase SDK 與 雲端同步邏輯 (與作業管理頁面統一) -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+    import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+    import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+    const customFirebaseConfig = {
+      apiKey: "AIzaSyAT9Vxm8gfpPn4Aliu3xXFGX8Ve9NY1UAk",
+      authDomain: "teacherboard-9224d.firebaseapp.com",
+      projectId: "teacherboard-9224d",
+      storageBucket: "teacherboard-9224d.appspot.com",
+      messagingSenderId: "801036213120",
+      appId: "1:801036213120:web:2077dc68b0a74395023f65"
+    };
+
+    const firebaseConfig = (typeof __firebase_config !== 'undefined' && __firebase_config !== '')
+      ? JSON.parse(__firebase_config)
+      : customFirebaseConfig;
+
+    const fbApp = initializeApp(firebaseConfig);
+    const auth = getAuth(fbApp);
+    const db = getFirestore(fbApp);
+
+    // 匿名登入
+    signInAnonymously(auth).catch(err => console.error("Firebase 匿名登入失敗:", err));
+
+    // 掛載全域變數供座位表 JavaScript 使用
+    window.fbDb = db;
+    window.fbDoc = doc;
+    window.fbSetDoc = setDoc;
+    window.fbOnSnapshot = onSnapshot;
+
+    // 初始化雲端同步
+    if (window.initCloudSync) {
+      window.initCloudSync();
+    }
+  </script>
+
+  <!-- 座位表核心邏輯 JavaScript -->
+  <script>
+    // 狀態管理
+    let state = {
+      students: [],    // 學生清單 [{id: "01", name: "洪秉豪", gender: "男"}]
+      seats: {},       // 座位映射 { seatIndex: studentId }
+      roomId: "default"
+    };
+
+    let unsubscribe = null;
+
+    // 取得 URL 班級參數
+    function getRoomIdFromURL() {
+      const urlParams = new URLSearchParams(window.location.search);
+      return urlParams.get('room') || 'default';
+    }
+
+    // 初始化頁面
+    window.addEventListener('DOMContentLoaded', () => {
+      state.roomId = getRoomIdFromURL();
+      document.getElementById('roomInput').value = state.roomId;
+      renderGridSlots();
+    });
+
+    // 班級切換
+    function switchRoom() {
+      const newRoom = document.getElementById('roomInput').value.trim() || 'default';
+      window.history.pushState({}, '', `?room=${encodeURIComponent(newRoom)}`);
+      state.roomId = newRoom;
+      if (window.initCloudSync) {
+        window.initCloudSync();
+      }
+    }
+
+    // 更新狀態指示燈
+    function updateStatus(type, message) {
+      const el = document.getElementById('syncStatus');
+      if (type === 'online') {
+        el.className = "inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800";
+        el.textContent = message || '🟢 雲端即時連線中';
+      } else if (type === 'offline') {
+        el.className = "inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-rose-100 text-rose-800";
+        el.textContent = message || '🔴 連線失敗';
+      } else {
+        el.className = "inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800";
+        el.textContent = message || '🟡 本機儲存';
+      }
+    }
+
+    // 1. 初始化 Firestore 雲端同步 (Firestore 版)
+    window.initCloudSync = function() {
+      if (!window.fbDb) {
+        updateStatus('offline', '🔴 Firebase 未就緒');
+        return;
+      }
+
+      const docRef = window.fbDoc(window.fbDb, "classrooms", state.roomId);
+
+      if (unsubscribe) unsubscribe();
+
+      // 開啟 Firestore 即時監聽
+      unsubscribe = window.fbOnSnapshot(docRef, (docSnap) => {
+        if (docSnap.exists()) {
+          const cloudData = docSnap.data();
+          state.students = cloudData.students || [];
+          state.seats = cloudData.seats || {};
+          renderUI();
+          updateStatus('online', '🟢 雲端即時連線中');
+        } else {
+          // 若雲端尚無此班級，解析預設文字框名單並建立
+          parseAndImport(false); 
+          updateStatus('online', `🟢 雲端即時連線中 (${state.roomId})`);
+        }
+      }, (error) => {
+        console.error("Firestore 監聽失敗:", error);
+        updateStatus('offline', '🔴 雲端連線失敗');
+      });
+    };
+
+    // 2. 將資料推送到 Firestore 雲端
+    async function saveStateToCloud() {
+      if (!window.fbDb) {
+        localStorage.setItem('seatingData_' + state.roomId, JSON.stringify(state));
+        return;
+      }
+
+      try {
+        const docRef = window.fbDoc(window.fbDb, "classrooms", state.roomId);
+        await window.fbSetDoc(docRef, {
+          students: state.students,
+          seats: state.seats,
+          updatedAt: new Date().toISOString()
+        });
+      } catch (err) {
+        console.error("儲存失敗:", err);
+        updateStatus('offline', '🔴 儲存失敗');
+      }
+    }
+
+    // 解析文字框名單
+    function parseAndImport(shouldSave = true) {
+      const text = document.getElementById('studentTextarea').value;
+      const lines = text.split('\n');
+      const parsed = [];
+
+      lines.forEach(line => {
+        const parts = line.trim().split(',');
+        if (parts.length >= 2) {
+          parsed.push({
+            id: parts[0].trim(),
+            name: parts[1].trim(),
+            gender: parts[2] ? parts[2].trim() : '男'
+          });
+        }
+      });
+
+      state.students = parsed;
+      // 保留合法 seat 映射
+      const validIds = new Set(parsed.map(s => s.id));
+      Object.keys(state.seats).forEach(seatIdx => {
+        if (!validIds.has(state.seats[seatIdx])) {
+          delete state.seats[seatIdx];
+        }
+      });
+
+      renderUI();
+      if (shouldSave) saveStateToCloud();
+    }
+
+    // 自動排座（男女相鄰 / 隨機）
+    function autoArrange(mode) {
+      if (state.students.length === 0) return;
+
+      let studentsToPlace = [...state.students];
+      state.seats = {};
+
+      if (mode === 'random') {
+        studentsToPlace.sort(() => Math.random() - 0.5);
+      } else if (mode === 'alternate') {
+        const boys = studentsToPlace.filter(s => s.gender === '男');
+        const girls = studentsToPlace.filter(s => s.gender === '女');
+        const result = [];
+        const maxLen = Math.max(boys.length, girls.length);
+        for (let i = 0; i < maxLen; i++) {
+          if (i < boys.length) result.push(boys[i]);
+          if (i < girls.length) result.push(girls[i]);
+        }
+        studentsToPlace = result;
+      }
+
+      // 填入前 30 個座位
+      studentsToPlace.forEach((student, index) => {
+        if (index < 30) {
+          state.seats[index] = student.id;
+        }
+      });
+
+      renderUI();
+      saveStateToCloud();
+    }
+
+    // 清空座位表
+    function clearBoard() {
+      state.seats = {};
+      renderUI();
+      saveStateToCloud();
+    }
+
+    // 生成 30 個座位 Slot HTML
+    function renderGridSlots() {
+      const grid = document.getElementById('seatingGrid');
+      grid.innerHTML = '';
+
+      for (let i = 0; i < 30; i++) {
+        const slot = document.createElement('div');
+        slot.className = 'seat-slot border-2 border-dashed border-slate-200 rounded-lg p-2 flex flex-col items-center justify-center bg-slate-50 relative';
+        slot.dataset.seatIndex = i;
+
+        // 拖曳事件
+        slot.addEventListener('dragover', (e) => {
+          e.preventDefault();
+          slot.classList.add('drag-over');
+        });
+        slot.addEventListener('dragleave', () => slot.classList.remove('drag-over'));
+        slot.addEventListener('drop', (e) => handleDrop(e, i));
+
+        grid.appendChild(slot);
+      }
+    }
+
+    // 渲染 UI (更新座位格子與待分配池)
+    function renderUI() {
+      const slots = document.querySelectorAll('.seat-slot');
+      const assignedIds = new Set(Object.values(state.seats));
+
+      // 1. 更新 30 個座位格
+      slots.forEach((slot, index) => {
+        slot.innerHTML = `<span class="absolute top-1 left-2 text-[10px] text-slate-400 font-bold">${index + 1}</span>`;
+        const studentId = state.seats[index];
+
+        if (studentId) {
+          const student = state.students.find(s => s.id === studentId);
+          if (student) {
+            slot.appendChild(createStudentCard(student));
+          }
+        }
+      });
+
+      // 2. 更新未分配池
+      const unassignedPool = document.getElementById('unassignedPool');
+      unassignedPool.innerHTML = '';
+      const unassignedStudents = state.students.filter(s => !assignedIds.has(s.id));
+      document.getElementById('unassignedCount').textContent = unassignedStudents.length;
+
+      unassignedStudents.forEach(student => {
+        unassignedPool.appendChild(createStudentCard(student, true));
+      });
+    }
+
+    // 建立學生卡片 DOM
+    function createStudentCard(student, isMini = false) {
+      const card = document.createElement('div');
+      card.draggable = true;
+      card.dataset.studentId = student.id;
+
+      const genderBg = student.gender === '女' ? 'bg-pink-100 text-pink-800 border-pink-200' : 'bg-blue-100 text-blue-800 border-blue-200';
+
+      if (isMini) {
+        card.className = `student-card px-2.5 py-1 rounded border text-xs font-medium flex items-center gap-1 shadow-sm ${genderBg}`;
+        card.innerHTML = `<span class="font-bold">${student.id}</span> ${student.name}`;
+      } else {
+        card.className = `student-card w-full h-full rounded-md p-1.5 border flex flex-col items-center justify-center shadow-sm ${genderBg}`;
+        card.innerHTML = `
+          <span class="text-[10px] font-bold opacity-75">${student.id}</span>
+          <span class="text-sm font-bold mt-0.5">${student.name}</span>
+        `;
+      }
+
+      card.addEventListener('dragstart', (e) => {
+        e.dataTransfer.setData('text/plain', student.id);
+      });
+
+      return card;
+    }
+
+    // 拖曳放置邏輯
+    function handleDrop(e, targetSeatIndex) {
+      e.preventDefault();
+      document.querySelectorAll('.seat-slot').forEach(s => s.classList.remove('drag-over'));
+
+      const studentId = e.dataTransfer.getData('text/plain');
+      if (!studentId) return;
+
+      // 如果該學生原本在別的座位，先移除舊位置
+      Object.keys(state.seats).forEach(seatIdx => {
+        if (state.seats[seatIdx] === studentId) {
+          delete state.seats[seatIdx];
+        }
+      });
+
+      // 放進新位置
+      state.seats[targetSeatIndex] = studentId;
+
+      renderUI();
+      saveStateToCloud();
+    }
+  </script>
+</body>
+</html>

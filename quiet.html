@@ -1,0 +1,466 @@
+﻿HTML
+
+
+<!doctype html>
+<html lang="zh-Hant">
+ <head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>班級秩序管理｜安靜守護任務</title>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;600;700;800&amp;family=Noto+Sans+TC:wght@400;500;600;700;800;900&amp;display=swap" rel="stylesheet">
+  <style>
+    :root { --navy:#101a34; --panel:#1a2948; --mint:#a5f3ce; --line:#354465; }
+    * { box-sizing:border-box; }
+    body { margin:0; width:100%; color:#f6f8ff; font-family:'Noto Sans TC','DM Sans',sans-serif; }
+    .app-shell { width:100%; min-height:calc(100 * min(var(--vh, 1vh), 1vh)); background:radial-gradient(circle at 85% 0%,#29476a 0%,transparent 38%),radial-gradient(circle at 5% 90%,#223958 0%,transparent 40%),var(--navy); }
+    .game-panel { background:#1a2948; border:1px solid var(--line); box-shadow:0 15px 40px #080e2145; }
+    .action { transition:transform .18s,filter .18s; }
+    .action:hover:not(:disabled) { transform:translateY(-2px); filter:brightness(1.08); }
+    .action:disabled { opacity:.48; cursor:not-allowed; }
+    :focus-visible { outline:3px solid #ffd975!important; outline-offset:3px; }
+    .life-slot { position:relative; isolation:isolate; overflow:hidden; display:grid; place-items:center; min-height:92px; border:1px solid #c5ffe2; border-radius:19px; background:linear-gradient(145deg,#b8ffdb,#54dca8); box-shadow:0 6px 20px #60e3ae35; transition:background .35s,border-color .35s,box-shadow .35s; }
+    .heart { color:#174e43; font-size:clamp(2.3rem,5vw,3.7rem); line-height:1; transition:opacity .25s,transform .25s; }
+    .broken-heart { position:absolute; font-size:clamp(2.3rem,5vw,3.7rem); line-height:1; opacity:0; color:#ed7182; pointer-events:none; }
+    .life-slot { animation:life-blink 1.8s ease-in-out 2; }
+    .life-slot.lost { background:#2e4652; border-color:#496b70; box-shadow:none; animation:none; }
+    .life-slot.lost .heart { opacity:.22; transform:scale(.7); color:#afc4c5; }
+    .life-slot.warning { background:linear-gradient(145deg,#ffe99a,#f4bd42); border-color:#fff0a8; box-shadow:0 0 0 4px #ffd97533,0 8px 24px #ffd97555; animation:warning-pulse 1.05s ease-in-out infinite; }
+    .life-slot.warning .heart { color:#72521a; }
+    .life-slot.breaking .heart { animation:heart-pop .65s ease both; }
+    .life-slot.breaking .broken-heart { animation:heart-break .8s ease-out both; }
+    .app-shell.shake { animation:screen-shake .55s ease-in-out; }
+    @keyframes screen-shake {
+      0%,100% { transform:translate(0,0) }
+      15% { transform:translate(-9px,2px) rotate(-.5deg) }
+      30% { transform:translate(8px,-3px) rotate(.5deg) }
+      45% { transform:translate(-7px,2px) }
+      60% { transform:translate(6px,-1px) }
+      80% { transform:translate(-3px,0) }
+    }
+    @keyframes life-blink { 0%,100% { opacity:1 } 50% { opacity:.28 } }
+    @keyframes warning-pulse { 0%,100% { transform:scale(1); } 50% { transform:scale(1.035); } }
+    @keyframes heart-pop { 0% { transform:scale(1) } 30% { transform:scale(1.3) } 100% { transform:scale(.5);opacity:0 } }
+    @keyframes heart-break { 0%,15% { opacity:0;transform:scale(.6) rotate(0) } 30% { opacity:1;transform:scale(1.25) rotate(-12deg) } 100% { opacity:0;transform:translateY(30px) scale(.5) rotate(18deg) } }
+    .alarm-overlay { position:fixed;inset:0;z-index:50;display:flex;align-items:center;justify-content:center;padding:24px;background:radial-gradient(circle at center,#b82e40,#53142d 70%,#260e24);text-align:center; }
+    .alarm-overlay[hidden] { display:none; }
+    .alarm-overlay:not([hidden]) { animation:overlay-in .2s ease-out; }
+    .alarm-ring { width:min(210px,48vw);aspect-ratio:1;border:8px solid #ffe3ab;border-radius:50%;display:grid;place-items:center;margin:0 auto 22px;box-shadow:0 0 0 17px #ffe3ab26,0 0 0 37px #ffe3ab13;animation:pulse 1s ease-in-out infinite alternate; }
+    @keyframes pulse { to { transform:scale(1.06);box-shadow:0 0 0 23px #ffe3ab22,0 0 0 48px #ffe3ab0c; } }
+    @keyframes overlay-in { from { opacity:0;transform:scale(1.03) } to { opacity:1;transform:scale(1) } }
+    @media (max-width:640px) { .life-slot { min-height:65px;border-radius:13px; } }
+    @media (prefers-reduced-motion:reduce) { *,*::before,*::after { animation-duration:.01ms!important;transition-duration:.01ms!important; } }
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/lucide@0.577.0/dist/umd/lucide.min.js" type="text/javascript"></script>
+  <script src="https://cdn.tailwindcss.com/3.4.17" type="text/javascript"></script>
+ </head>
+ <body data-template-id="__page-root" class="w-full">
+  <div id="app-shell" class="app-shell w-full">
+   <header class="w-full border-b border-white/10">
+    <div class="mx-auto max-w-6xl px-5 py-4 sm:px-8 flex flex-wrap items-center gap-x-4 gap-y-2">
+     <span data-template-id="brand" class="canva-text shrink-0 font-extrabold tracking-wider" style="color:#a5f3ce">✦ QUIET QUEST</span>
+     <h1 data-template-id="page-title" class="canva-text font-black leading-tight text-xl sm:text-2xl" style="color:#ffffff">安靜守護任務</h1>
+     <span data-template-id="header-badge" class="canva-tag rounded-full border border-white/20 px-3 py-1 text-xs sm:text-sm whitespace-nowrap" style="color:#d5e4fa">全班合作挑戰 • 每週 5 次機會</span>
+
+     <!-- 雲端連線狀態與班級代碼切換 -->
+     <div class="flex flex-wrap items-center gap-2 sm:ml-auto">
+      <span id="syncStatus" class="inline-flex items-center rounded-full bg-amber-300/20 border border-amber-300/40 px-3 py-1 text-xs font-bold text-amber-200 whitespace-nowrap">
+       🟡 初始化連線中...
+      </span>
+      <div class="flex items-center gap-1.5 rounded-xl bg-white/10 border border-white/15 px-2.5 py-1">
+       <label for="roomInput" class="text-xs font-bold text-[#bbcae3] whitespace-nowrap">班級代碼</label>
+       <input id="roomInput" type="text" value="default" class="w-20 rounded-lg bg-[#101c35] border border-[#546482] px-2 py-0.5 text-center text-xs font-bold text-white focus:outline-none">
+       <button id="switchRoomBtn" type="button" class="rounded-lg bg-[#a5f3ce] px-2.5 py-0.5 text-xs font-extrabold text-[#101a34] hover:brightness-105 transition">切換</button>
+      </div>
+     </div>
+    </div>
+   </header>
+   <main class="mx-auto max-w-6xl px-5 py-5 sm:px-8 sm:py-7 space-y-4">
+    <section data-template-id="rules-panel" class="canva-panel game-panel rounded-2xl p-4 sm:p-5" aria-labelledby="rules-heading">
+     <div class="flex flex-wrap items-baseline gap-x-4 gap-y-1 mb-3">
+      <h2 id="rules-heading" data-template-id="rules-heading" class="canva-text font-extrabold" style="color:#ffffff">今日安靜守則</h2>
+      <p data-template-id="rules-help" class="canva-text" style="color:#bbcae3">輸入提醒，規則會立即顯示並同步。</p>
+     </div>
+     <div class="grid gap-3 md:grid-cols-2">
+      <div>
+       <label data-template-id="rules-label" for="rules-input" class="canva-text mb-2 block font-bold" style="color:#e9f1ff">老師的提醒</label>
+       <textarea id="rules-input" rows="2" maxlength="300" class="w-full min-h-[88px] resize-y rounded-xl border border-[#546482] bg-[#101c35] p-3 text-white placeholder:text-[#94a6c1] focus:outline-none" placeholder="例如：說話前先舉手；用餐時輕聲細語。"></textarea>
+      </div>
+      <div data-template-id="rules-display" class="canva-card rounded-xl border border-[#a5f3ce]/25 p-3">
+       <p data-template-id="rules-display-label" class="canva-text mb-2 font-bold" style="color:#a5f3ce">✦ 我們一起做到</p>
+       <p id="rules-output" class="whitespace-pre-wrap break-words leading-relaxed text-white" aria-live="polite">保持安靜，尊重每一位同學的學習時間。</p>
+      </div>
+     </div>
+    </section>
+    <section aria-labelledby="period-heading">
+     <div class="flex flex-wrap items-center gap-2 sm:gap-3">
+      <h2 id="period-heading" data-template-id="period-heading" class="canva-text font-bold mr-1" style="color:#e9f1ff">安靜任務時段</h2>
+      <div data-template-id="morning-card" class="canva-card game-panel rounded-xl px-4 py-2 flex items-center gap-2">
+       <span aria-hidden="true">☀️</span><span data-template-id="morning-label" class="canva-text font-bold" style="color:#ffffff">晨光時間</span>
+      </div>
+      <div data-template-id="class-card" class="canva-card game-panel rounded-xl px-4 py-2 flex items-center gap-2">
+       <span aria-hidden="true">📚</span><span data-template-id="class-label" class="canva-text font-bold" style="color:#ffffff">課堂時間</span>
+      </div>
+      <div data-template-id="lunch-card" class="canva-card game-panel rounded-xl px-4 py-2 flex items-center gap-2">
+       <span aria-hidden="true">🍱</span><span data-template-id="lunch-label" class="canva-text font-bold" style="color:#ffffff">午餐時間</span>
+      </div>
+     </div>
+    </section>
+    <section data-template-id="life-panel" class="canva-panel game-panel rounded-2xl p-4 sm:p-6" aria-labelledby="life-heading">
+     <div class="flex flex-wrap items-center justify-between gap-2">
+      <div class="flex flex-wrap items-baseline gap-x-4 gap-y-1">
+       <h2 id="life-heading" data-template-id="life-heading" class="canva-text font-extrabold" style="color:#ffffff">本週生命值</h2>
+       <p data-template-id="life-description" class="canva-text" style="color:#bbcae3">每一次安靜，都是全班一起完成的任務。</p>
+      </div>
+      <div class="rounded-xl bg-[#a5f3ce]/10 px-3 py-1 text-[#a5f3ce] font-extrabold" aria-live="polite">
+       剩餘 <span id="remaining">5</span> / 5
+      </div>
+     </div>
+     <div id="life-bar" class="mt-4 grid grid-cols-5 gap-2 sm:gap-3" role="img" aria-label="剩餘 5 次機會">
+      <div class="life-slot"><span class="heart" aria-hidden="true">♥</span><span class="broken-heart" aria-hidden="true">💔</span></div>
+      <div class="life-slot"><span class="heart" aria-hidden="true">♥</span><span class="broken-heart" aria-hidden="true">💔</span></div>
+      <div class="life-slot"><span class="heart" aria-hidden="true">♥</span><span class="broken-heart" aria-hidden="true">💔</span></div>
+      <div class="life-slot"><span class="heart" aria-hidden="true">♥</span><span class="broken-heart" aria-hidden="true">💔</span></div>
+      <div class="life-slot"><span class="heart" aria-hidden="true">♥</span><span class="broken-heart" aria-hidden="true">💔</span></div>
+     </div>
+     <p id="life-status" class="mt-3 min-h-6 font-semibold text-[#a5f3ce]" aria-live="polite">繼續保持，守護五顆愛心！</p>
+     <div class="mt-4 flex flex-wrap gap-2 sm:gap-3">
+      <button id="alarm-button" data-template-id="alarm-button" type="button" class="canva-button action rounded-xl px-5 py-3 font-extrabold" style="background:#ffd975;color:#28223b">📣 全班安靜</button>
+      <button id="deduct-button" data-template-id="deduct-button" type="button" class="canva-button action rounded-xl px-5 py-3 font-extrabold" style="background:#ed7182;color:#321626">♥ 扣除一次機會</button>
+      <button id="reset-button" data-template-id="reset-button" type="button" class="canva-button rounded-xl border border-white/30 px-4 py-3 font-semibold hover:bg-white/10 sm:ml-auto" style="color:#dce8fb">↻ 開始新的一週</button>
+     </div>
+    </section>
+   </main>
+   <footer class="mx-auto max-w-6xl px-5 pb-5 sm:px-8">
+    <p data-template-id="footer-note" class="canva-text" style="color:#9fb1cc">一起合作，讓教室成為安心學習的地方。</p>
+   </footer>
+  </div>
+  <div id="alarm-overlay" class="alarm-overlay" role="dialog" aria-modal="true" aria-labelledby="alarm-title" hidden>
+   <div class="w-full max-w-3xl">
+    <div class="alarm-ring"><span aria-hidden="true" class="text-6xl sm:text-7xl">🔔</span></div>
+    <p data-template-id="alarm-kicker" class="canva-text mb-3 font-extrabold tracking-[.2em]" style="color:#ffe3ab">QUIET PLEASE • 安靜提醒</p>
+    <h2 id="alarm-title" data-template-id="alarm-title" class="canva-text font-black leading-tight text-3xl sm:text-5xl" style="color:#ffffff">全班請安靜！</h2>
+    <p data-template-id="alarm-message" class="canva-text mt-4 leading-relaxed" style="color:#ffe8e0">停下說話，準備好一起回到安靜的任務。</p>
+    <button id="close-alarm" data-template-id="close-alarm" type="button" class="canva-button action mt-8 rounded-2xl px-8 py-3 font-extrabold" style="background:#ffe3ab;color:#482038">我知道了 • 關閉提醒</button>
+   </div>
+  </div>
+
+  <script>
+    (() => {
+      let lives = 5;
+      let audioContext = null;
+      let alarmTimer = null;
+      let activeNodes = [];
+      let previousFocus = null;
+      let warningShown = false;
+      let alarmActive = false;
+      let unsubscribeSnapshot = null;
+      let ruleSaveTimer = null;
+
+      const shell = document.getElementById('app-shell');
+      const overlay = document.getElementById('alarm-overlay');
+      const slots = [...document.querySelectorAll('.life-slot')];
+      const deduct = document.getElementById('deduct-button');
+      const status = document.getElementById('life-status');
+      const input = document.getElementById('rules-input');
+      const output = document.getElementById('rules-output');
+      const closeButton = document.getElementById('close-alarm');
+      const roomInput = document.getElementById('roomInput');
+      const switchRoomBtn = document.getElementById('switchRoomBtn');
+      const syncStatusEl = document.getElementById('syncStatus');
+      const defaultRule = '保持安靜，尊重每一位同學的學習時間。';
+
+      function getRoomId() {
+        const urlParams = new URLSearchParams(window.location.search);
+        return urlParams.get('room') || 'default';
+      }
+
+      function updateSyncStatus(type, message) {
+        if (!syncStatusEl) return;
+        if (type === 'online') {
+          syncStatusEl.className = 'inline-flex items-center rounded-full bg-emerald-400/20 border border-emerald-400/40 px-3 py-1 text-xs font-bold text-emerald-200 whitespace-nowrap';
+          syncStatusEl.textContent = message || '🟢 雲端即時連線中';
+        } else if (type === 'offline') {
+          syncStatusEl.className = 'inline-flex items-center rounded-full bg-rose-400/20 border border-rose-400/40 px-3 py-1 text-xs font-bold text-rose-200 whitespace-nowrap';
+          syncStatusEl.textContent = message || '🔴 雲端連線失敗';
+        } else {
+          syncStatusEl.className = 'inline-flex items-center rounded-full bg-amber-300/20 border border-amber-300/40 px-3 py-1 text-xs font-bold text-amber-200 whitespace-nowrap';
+          syncStatusEl.textContent = message || '🟡 初始化連線中...';
+        }
+      }
+
+      async function saveToCloud() {
+        if (!window.fbDb) return;
+        try {
+          const roomId = getRoomId();
+          const docRef = window.fbDoc(window.fbDb, 'quiet_quest', roomId);
+          await window.fbSetDoc(docRef, {
+            lives,
+            ruleText: input.value,
+            warningShown,
+            alarmActive,
+            updatedAt: new Date().toISOString()
+          });
+        } catch (err) {
+          console.error('Firestore 儲存失敗:', err);
+          updateSyncStatus('offline', '🔴 儲存失敗');
+        }
+      }
+
+      function applyWarningVisuals() {
+        slots.forEach(slot => slot.classList.remove('warning'));
+        if (warningShown && lives > 0) {
+          const availableSlots = slots.filter(slot => !slot.classList.contains('lost'));
+          if (availableSlots.length) {
+            availableSlots[availableSlots.length - 1].classList.add('warning');
+          }
+        }
+      }
+
+      function triggerHeartBreakAnimation(slotIndex) {
+        const slot = slots[slotIndex];
+        if (!slot) return;
+        slot.classList.remove('breaking');
+        shell.classList.remove('shake');
+        void slot.offsetWidth;
+        slot.classList.add('breaking');
+        shell.classList.add('shake');
+        playHeartLossSound();
+        setTimeout(() => slot.classList.remove('breaking'), 850);
+        setTimeout(() => shell.classList.remove('shake'), 600);
+      }
+
+      function updateLives() {
+        slots.forEach((slot, index) => slot.classList.toggle('lost', index >= lives));
+        applyWarningVisuals();
+        document.getElementById('remaining').textContent = lives;
+        document.getElementById('life-bar').setAttribute('aria-label', `剩餘 ${lives} 次機會`);
+        deduct.disabled = lives === 0;
+        status.textContent = lives === 0
+          ? '本週機會已用完，下週再一起努力！'
+          : lives === 5
+            ? '繼續保持，守護五顆愛心！'
+            : `還有 ${lives} 次機會，一起努力保持安靜！`;
+      }
+
+      function stopAlarm() {
+        clearTimeout(alarmTimer);
+        activeNodes.forEach(node => { try { node.stop(); } catch (_) {} });
+        activeNodes = [];
+        if (audioContext) {
+          const context = audioContext;
+          audioContext = null;
+          context.close().catch(() => {});
+        }
+      }
+
+      function playAlarm() {
+        stopAlarm();
+        const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+        if (!AudioContextClass) return;
+        try {
+          audioContext = new AudioContextClass();
+          audioContext.resume().catch(() => {});
+          const melody = [784, 988, 1175, 988, 784, 659];
+          let step = 0;
+          const playNote = () => {
+            if (!audioContext) return;
+            const start = audioContext.currentTime + 0.02;
+            const oscillator = audioContext.createOscillator();
+            const gain = audioContext.createGain();
+            oscillator.type = 'triangle';
+            oscillator.frequency.setValueAtTime(melody[step % melody.length], start);
+            gain.gain.setValueAtTime(0.0001, start);
+            gain.gain.exponentialRampToValueAtTime(0.13, start + 0.035);
+            gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.32);
+            oscillator.connect(gain).connect(audioContext.destination);
+            oscillator.start(start);
+            oscillator.stop(start + 0.34);
+            activeNodes.push(oscillator);
+            step++;
+          };
+          playNote();
+          alarmTimer = setInterval(playNote, 380);
+        } catch (_) { stopAlarm(); }
+      }
+
+      function playHeartLossSound() {
+        const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+        if (!AudioContextClass) return;
+        try {
+          const context = new AudioContextClass();
+          const start = context.currentTime + 0.01;
+          const oscillator = context.createOscillator();
+          const gain = context.createGain();
+          oscillator.type = 'sine';
+          oscillator.frequency.setValueAtTime(260, start);
+          oscillator.frequency.exponentialRampToValueAtTime(78, start + 0.42);
+          gain.gain.setValueAtTime(0.0001, start);
+          gain.gain.exponentialRampToValueAtTime(0.16, start + 0.035);
+          gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.44);
+          oscillator.connect(gain).connect(context.destination);
+          oscillator.start(start);
+          oscillator.stop(start + 0.46);
+          oscillator.addEventListener('ended', () => context.close().catch(() => {}), { once: true });
+        } catch (_) {}
+      }
+
+      function openOverlay(shouldSync = true) {
+        previousFocus = document.activeElement;
+        overlay.hidden = false;
+        alarmActive = true;
+        closeButton.focus();
+        playAlarm();
+        if (shouldSync) saveToCloud();
+      }
+
+      function closeOverlay(shouldSync = true) {
+        overlay.hidden = true;
+        alarmActive = false;
+        stopAlarm();
+        if (!warningShown && lives > 0) {
+          warningShown = true;
+          applyWarningVisuals();
+        }
+        if (previousFocus) previousFocus.focus();
+        if (shouldSync) saveToCloud();
+      }
+
+      window.initCloudSync = function() {
+        if (!window.fbDb) {
+          updateSyncStatus('offline', '🔴 Firebase 未連線');
+          return;
+        }
+        const roomId = getRoomId();
+        roomInput.value = roomId;
+        const docRef = window.fbDoc(window.fbDb, 'quiet_quest', roomId);
+
+        if (unsubscribeSnapshot) unsubscribeSnapshot();
+
+        unsubscribeSnapshot = window.fbOnSnapshot(docRef, (docSnap) => {
+          if (docSnap.exists()) {
+            const data = docSnap.data();
+
+            // 同步生命值與警告狀態
+            const incomingLives = typeof data.lives === 'number' ? data.lives : 5;
+            const prevLives = lives;
+            lives = Math.max(0, Math.min(5, incomingLives));
+            warningShown = Boolean(data.warningShown);
+
+            if (lives < prevLives) {
+              triggerHeartBreakAnimation(lives);
+            } else if (lives === 5 && prevLives < 5) {
+              slots.forEach(slot => slot.classList.remove('breaking', 'warning'));
+              shell.classList.remove('shake');
+            }
+            updateLives();
+
+            // 同步安靜守則文字
+            if (typeof data.ruleText === 'string') {
+              if (document.activeElement !== input) {
+                input.value = data.ruleText;
+              }
+              output.textContent = data.ruleText.trim() || defaultRule;
+            }
+
+            // 同步全班安靜提醒視窗
+            const incomingAlarm = Boolean(data.alarmActive);
+            if (incomingAlarm && overlay.hidden) {
+              openOverlay(false);
+            } else if (!incomingAlarm && !overlay.hidden) {
+              overlay.hidden = true;
+              alarmActive = false;
+              stopAlarm();
+            }
+
+            updateSyncStatus('online', `🟢 雲端即時連線 (${roomId})`);
+          } else {
+            updateSyncStatus('online', `🟢 雲端即時連線 (新班級: ${roomId})`);
+          }
+        }, (err) => {
+          console.error('Firestore 監聽失敗:', err);
+          updateSyncStatus('offline', '🔴 雲端連線失敗');
+        });
+      };
+
+      switchRoomBtn.addEventListener('click', () => {
+        const newRoom = roomInput.value.trim() || 'default';
+        window.history.pushState({}, '', `?room=${encodeURIComponent(newRoom)}`);
+        if (window.initCloudSync) window.initCloudSync();
+      });
+
+      document.getElementById('alarm-button').addEventListener('click', () => openOverlay(true));
+      closeButton.addEventListener('click', () => closeOverlay(true));
+      overlay.addEventListener('keydown', event => {
+        if (event.key === 'Escape') closeOverlay(true);
+        if (event.key === 'Tab') {
+          event.preventDefault();
+          closeButton.focus();
+        }
+      });
+
+      deduct.addEventListener('click', () => {
+        if (lives === 0) return;
+        const warningSlot = slots.find(slot => slot.classList.contains('warning') && !slot.classList.contains('lost'));
+        const slotIndex = warningSlot ? slots.indexOf(warningSlot) : lives - 1;
+        lives--;
+        warningShown = false;
+        triggerHeartBreakAnimation(slotIndex);
+        updateLives();
+        saveToCloud();
+      });
+
+      document.getElementById('reset-button').addEventListener('click', () => {
+        lives = 5;
+        warningShown = false;
+        slots.forEach(slot => slot.classList.remove('breaking', 'warning'));
+        shell.classList.remove('shake');
+        updateLives();
+        saveToCloud();
+      });
+
+      input.addEventListener('input', () => {
+        output.textContent = input.value.trim() || defaultRule;
+        clearTimeout(ruleSaveTimer);
+        ruleSaveTimer = setTimeout(() => {
+          saveToCloud();
+        }, 400);
+      });
+    })();
+  </script>
+
+  <!-- Firebase SDK 與雲端同步模組 -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+    import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+    import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+    const customFirebaseConfig = {
+      apiKey: "AIzaSyAT9Vxm8gfpPn4Aliu3xXFGX8Ve9NY1UAk",
+      authDomain: "teacherboard-9224d.firebaseapp.com",
+      projectId: "teacherboard-9224d",
+      storageBucket: "teacherboard-9224d.appspot.com",
+      messagingSenderId: "801036213120",
+      appId: "1:801036213120:web:2077dc68b0a74395023f65"
+    };
+
+    const firebaseConfig = (typeof __firebase_config !== 'undefined' && __firebase_config !== '')
+      ? JSON.parse(__firebase_config)
+      : customFirebaseConfig;
+
+    const fbApp = initializeApp(firebaseConfig);
+    const auth = getAuth(fbApp);
+    const db = getFirestore(fbApp);
+
+    signInAnonymously(auth).catch(err => console.error("Firebase 匿名登入失敗:", err));
+
+    window.fbDb = db;
+    window.fbDoc = doc;
+    window.fbSetDoc = setDoc;
+    window.fbOnSnapshot = onSnapshot;
+
+    if (window.initCloudSync) {
+      window.initCloudSync();
+    }
+  </script>
+ </body>
+</html>
